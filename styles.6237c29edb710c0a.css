@@ -59,7 +59,9 @@ button,.button { background:var(--green); color:white; border:0; cursor:pointer;
 .rescue-row { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:16px; }
 .about-page { padding:48px 0 8px; }
 .about-intro { max-width:760px; margin-bottom:46px; }
+.about-intro .eyebrow { font-size:clamp(24px,3vw,32px); letter-spacing:.04em; }
 .about-intro h1 { margin-bottom:12px; }
+.about-intro .lede { font-size:1rem; }
 .about-sections { display:grid; gap:clamp(36px,7vw,92px); }
 .about-section { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,.92fr); align-items:center; gap:clamp(28px,5vw,64px); padding:12px clamp(20px,3vw,40px); }
 .about-section.reverse { grid-template-columns:minmax(260px,.92fr) minmax(0,1fr); }
