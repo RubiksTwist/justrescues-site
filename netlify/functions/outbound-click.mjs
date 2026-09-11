@@ -1,3 +1,5 @@
+import { getStore } from "@netlify/blobs";
+
 const MAX_EVENT_BYTES = 1024;
 const MAX_FIELD_LENGTH = 160;
 const SURFACES = new Set(["catalog_card", "dog_detail", "rescue_page", "rescue_page_card"]);
@@ -13,13 +15,22 @@ function destinationHost(value) {
 }
 
 /**
- * Records an anonymous referral event in Netlify function logs.
+ * Records an anonymous referral event in a private, site-wide Netlify Blobs
+ * store. Each event has a distinct key, so simultaneous referrals cannot
+ * overwrite each other.
  *
  * The browser sends no cookies, user identifiers, IP addresses, full URLs,
  * search terms, or other visitor-supplied data. The Netlify dashboard keeps
- * these logs for the retention period provided by the team's plan.
+ * the referral store records only the approved fields below.
  */
-export default async function handler(request) {
+async function persist(event) {
+  const observedOn = new Date().toISOString().slice(0, 10);
+  const key = `events/${observedOn}/${crypto.randomUUID()}.json`;
+  const referralStore = getStore("outbound-referrals");
+  await referralStore.setJSON(key, { ...event, observed_on: observedOn });
+}
+
+export default async function handler(request, context) {
   if (request.method !== "POST") {
     return new Response(null, { status: 405, headers: { allow: "POST" } });
   }
@@ -43,6 +54,15 @@ export default async function handler(request) {
     };
     if (!event.rescue || !SURFACES.has(event.surface) || !KINDS.has(event.kind) || !event.destination_host) {
       throw new Error("invalid referral event");
+    }
+
+    const write = persist(event).catch(() => {
+      // Storage is best-effort and must never affect a rescue referral.
+    });
+    if (typeof context?.waitUntil === "function") {
+      context.waitUntil(write);
+    } else {
+      await write;
     }
     console.log(JSON.stringify(event));
   } catch {
