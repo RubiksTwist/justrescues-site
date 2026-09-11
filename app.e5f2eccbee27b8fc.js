@@ -29,16 +29,21 @@ if(app){
   const results=document.querySelector("#dog-results");
   const count=document.querySelector("#result-count");
   const more=document.querySelector("#show-more");
-  let dogs=[];let shown=24;let mixedSize=["small","medium","large"].includes(new URLSearchParams(location.search).get("mixed"))?new URLSearchParams(location.search).get("mixed"):"";
+  const searchStateKey="just-rescues:catalog-search:v1";
+  const searchParams=new URLSearchParams(location.search);
+  const savedSearch=()=>{try{const value=JSON.parse(sessionStorage.getItem(searchStateKey)||"null");return value&&typeof value==="object"&&value.filters&&typeof value.filters==="object"?value:null}catch{return null}};
+  const initialSearch=searchParams.size?{filters:Object.fromEntries(searchParams.entries())}:savedSearch();
+  const initialFilters=initialSearch?.filters||{};
+  let dogs=[];let shown=Number.isInteger(initialSearch?.shown)&&initialSearch.shown>0?initialSearch.shown:24;let mixedSize=["small","medium","large"].includes(initialFilters.mixed)?initialFilters.mixed:"";
   const readFilters=()=>({...Object.fromEntries(new FormData(form).entries()),mixed:mixedSize});
   const filtered=()=>{const f=readFilters();const breed=f.breed.trim().toLowerCase();return dogs.filter(dog=>{const sourceBreed=String(dog.breed_primary||"").toLowerCase();const displayBreed=String(dog.breed_display||"").toLowerCase();const isMixed=sourceBreed.includes("mix")||sourceBreed.includes("cross")||!sourceBreed.trim();return(!breed||(sourceBreed.includes(breed)||displayBreed.includes(breed)))&&(!f.mixed||(isMixed&&dog.size_group===f.mixed))&&(!f.rescue||dog.source_key===f.rescue)&&(!f.age||dog.age_group===f.age)&&(!f.size||dog.size_group===f.size)&&(!f.sex||dog.sex===f.sex)})};
-  const render=()=>{const matches=filtered();results.innerHTML=matches.slice(0,shown).map(card).join("")||'<div class="notice">No dogs match these filters. Try broadening the search.</div>';count.textContent=`${matches.length} ${matches.length===1?"dog":"dogs"}`;more.classList.toggle("hidden",shown>=matches.length);installImageFallbacks(results);syncFavoriteButtons(results);const params=new URLSearchParams(Object.entries(readFilters()).filter(([,value])=>value));history.replaceState(null,"",params.size?`?${params}`:location.pathname)};
+  const render=()=>{const matches=filtered();results.innerHTML=matches.slice(0,shown).map(card).join("")||'<div class="notice">No dogs match these filters. Try broadening the search.</div>';count.textContent=`${matches.length} ${matches.length===1?"dog":"dogs"}`;more.classList.toggle("hidden",shown>=matches.length);installImageFallbacks(results);syncFavoriteButtons(results);const filters=readFilters();const params=new URLSearchParams(Object.entries(filters).filter(([,value])=>value));if(params.size)sessionStorage.setItem(searchStateKey,JSON.stringify({filters,shown}));else sessionStorage.removeItem(searchStateKey);history.replaceState(null,"",params.size?`?${params}`:location.pathname)};
   const manifest=await fetch("manifest.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error("Catalog manifest unavailable");return response.json()});
   const [index,rescueData]=await Promise.all([fetch(manifest.assets.index.path).then(response=>response.json()),fetch(manifest.assets.rescues.path).then(response=>response.json())]);
   dogs=index.dogs;
   const rescueSelect=form.elements.rescue;
   rescueData.rescues.filter(rescue=>rescue.catalog_status==="listings_available").forEach(rescue=>{const option=document.createElement("option");option.value=rescue.source_key;option.textContent=rescue.name;rescueSelect.append(option)});
-  const initial=new URLSearchParams(location.search);for(const name of ["breed","rescue","age","size","sex"]){if(initial.has(name))form.elements[name].value=initial.get(name)}
+  for(const name of ["breed","rescue","age","size","sex"]){if(typeof initialFilters[name]==="string")form.elements[name].value=initialFilters[name]}
   form.addEventListener("submit",event=>{event.preventDefault();mixedSize="";shown=24;render()});
   form.addEventListener("change",()=>{mixedSize="";shown=24;render()});
   more.addEventListener("click",()=>{shown+=24;render()});
