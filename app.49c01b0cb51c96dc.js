@@ -60,12 +60,10 @@ if(app){
   const scrollToResults=()=>{resultsSection.focus({preventScroll:true});resultsSection.scrollIntoView({behavior:"smooth",block:"start"})};
   const syncBackToFilters=()=>backToFilters.classList.toggle("hidden",searchSection.getBoundingClientRect().bottom>0);
   const manifest=await fetch("manifest.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error("Catalog manifest unavailable");return response.json()});
-  const [index,rescueData]=await Promise.all([fetch(manifest.assets.index.path).then(response=>response.json()),fetch(manifest.assets.rescues.path).then(response=>response.json())]);
+  const index=await fetch(manifest.assets.index.path).then(response=>response.json());
   dogs=index.dogs;
-  const rescueSelect=form.elements.rescue;
-  rescueData.rescues.filter(rescue=>rescue.catalog_status==="listings_available").forEach(rescue=>{const option=document.createElement("option");option.value=rescue.source_key;option.textContent=rescue.name;rescueSelect.append(option)});
   if(typeof initialFilters.query==="string")queryInput.value=initialFilters.query;else if(typeof initialFilters.breed==="string")queryInput.value=initialFilters.breed;
-  for(const name of ["rescue","age","size","sex"]){if(typeof initialFilters[name]==="string")form.elements[name].value=initialFilters[name]}
+  for(const name of ["age","size","sex"]){if(typeof initialFilters[name]==="string")form.elements[name].value=initialFilters[name]}
   form.addEventListener("submit",event=>{event.preventDefault();mixedSize="";shown=24;render();requestAnimationFrame(scrollToResults)});
   form.addEventListener("change",()=>{mixedSize="";shown=24;render()});
   queryInput.addEventListener("input",()=>{mixedSize="";shown=24;render();showSuggestions()});
