@@ -33,6 +33,9 @@ if(app){
   const results=document.querySelector("#dog-results");
   const count=document.querySelector("#result-count");
   const more=document.querySelector("#show-more");
+  const searchSection=document.querySelector("#dog-search").closest(".home-search-section");
+  const resultsSection=document.querySelector("#catalog-results");
+  const backToFilters=document.querySelector("#back-to-filters");
   const queryInput=form.elements.query;
   const suggestionMenu=document.querySelector("#dog-search-suggestions");
   const clearFilters=document.querySelector("#clear-filters");
@@ -53,6 +56,8 @@ if(app){
   const showSuggestions=()=>{const items=suggestions();activeSuggestion=-1;if(!items.length){closeSuggestions();return}suggestionMenu.innerHTML=items.map((breed,index)=>`<button type="button" class="typeahead-option" role="option" id="dog-search-option-${index}" data-suggestion="${index}" aria-selected="false">${escapeHtml(breed)}</button>`).join("");suggestionMenu.hidden=false;queryInput.setAttribute("aria-expanded","true");suggestionMenu.querySelectorAll("[data-suggestion]").forEach(button=>button.addEventListener("click",()=>chooseSuggestion(items[Number(button.dataset.suggestion)])))};
   const setActiveSuggestion=index=>{const options=[...suggestionMenu.querySelectorAll("[data-suggestion]")];if(!options.length)return;activeSuggestion=(index+options.length)%options.length;options.forEach((option,optionIndex)=>{const active=optionIndex===activeSuggestion;option.classList.toggle("is-active",active);option.setAttribute("aria-selected",String(active))});const active=options[activeSuggestion];queryInput.setAttribute("aria-activedescendant",active.id);active.scrollIntoView({block:"nearest"})};
   const render=()=>{const matches=filtered();results.innerHTML=matches.slice(0,shown).map(card).join("")||'<div class="notice">No dogs match these filters. Try broadening the search.</div>';count.textContent=`${matches.length} ${matches.length===1?"dog":"dogs"}`;more.classList.toggle("hidden",shown>=matches.length);installImageFallbacks(results);syncFavoriteButtons(results);const filters=readFilters();const hasFilters=Object.values(filters).some(value=>Boolean(value));clearFilters.classList.toggle("hidden",!hasFilters);const params=new URLSearchParams(Object.entries(filters).filter(([,value])=>value));if(params.size)sessionStorage.setItem(searchStateKey,JSON.stringify({filters,shown}));else sessionStorage.removeItem(searchStateKey);history.replaceState(null,"",params.size?`?${params}`:location.pathname)};
+  const scrollToResults=()=>{resultsSection.focus({preventScroll:true});resultsSection.scrollIntoView({behavior:"smooth",block:"start"})};
+  const syncBackToFilters=()=>backToFilters.classList.toggle("hidden",searchSection.getBoundingClientRect().bottom>0);
   const manifest=await fetch("manifest.json",{cache:"no-store"}).then(response=>{if(!response.ok)throw new Error("Catalog manifest unavailable");return response.json()});
   const [index,rescueData]=await Promise.all([fetch(manifest.assets.index.path).then(response=>response.json()),fetch(manifest.assets.rescues.path).then(response=>response.json())]);
   dogs=index.dogs;
@@ -60,15 +65,18 @@ if(app){
   rescueData.rescues.filter(rescue=>rescue.catalog_status==="listings_available").forEach(rescue=>{const option=document.createElement("option");option.value=rescue.source_key;option.textContent=rescue.name;rescueSelect.append(option)});
   if(typeof initialFilters.query==="string")queryInput.value=initialFilters.query;else if(typeof initialFilters.breed==="string")queryInput.value=initialFilters.breed;
   for(const name of ["rescue","age","size","sex"]){if(typeof initialFilters[name]==="string")form.elements[name].value=initialFilters[name]}
-  form.addEventListener("submit",event=>{event.preventDefault();mixedSize="";shown=24;render()});
+  form.addEventListener("submit",event=>{event.preventDefault();mixedSize="";shown=24;render();requestAnimationFrame(scrollToResults)});
   form.addEventListener("change",()=>{mixedSize="";shown=24;render()});
   queryInput.addEventListener("input",()=>{mixedSize="";shown=24;render();showSuggestions()});
   queryInput.addEventListener("keydown",event=>{if(event.key==="ArrowDown"){if(!suggestionMenu.hidden){event.preventDefault();setActiveSuggestion(activeSuggestion+1)}}else if(event.key==="ArrowUp"){if(!suggestionMenu.hidden){event.preventDefault();setActiveSuggestion(activeSuggestion-1)}}else if(event.key==="Enter"&&activeSuggestion>=0&&!suggestionMenu.hidden){event.preventDefault();const item=suggestions()[activeSuggestion];if(item)chooseSuggestion(item)}else if(event.key==="Escape"){closeSuggestions()}});
   queryInput.addEventListener("focus",showSuggestions);
   queryInput.addEventListener("blur",()=>setTimeout(closeSuggestions,150));
   clearFilters.addEventListener("click",()=>{form.reset();mixedSize="";shown=24;closeSuggestions();render();queryInput.focus()});
+  backToFilters.addEventListener("click",()=>{queryInput.focus({preventScroll:true});searchSection.scrollIntoView({behavior:"smooth",block:"start"})});
+  window.addEventListener("scroll",syncBackToFilters,{passive:true});
   more.addEventListener("click",()=>{shown+=24;render()});
   render();
+  syncBackToFilters();
 }
 const favoritesApp=document.querySelector("[data-static-favorites-app]");
 if(favoritesApp){const results=favoritesApp.querySelector("[data-favorites-results]");const favorites=[...readFavorites()];if(!favorites.length){results.innerHTML='<div class="notice">You haven’t saved any dogs yet. <a href="../index.html">Find dogs to favorite.</a></div>'}else{const manifest=await fetch("../manifest.json",{cache:"no-store"}).then(response=>response.json());const detailIndex=await fetch(`../${manifest.assets.details.path}`).then(response=>response.json());const paths=new Map(detailIndex.dogs.map(dog=>[dog.id,dog.path]));const dogs=(await Promise.all(favorites.map(async id=>{const path=paths.get(id);if(!path)return null;const response=await fetch(`../${path}`);return response.ok?(await response.json()).dog:null;}))).filter(Boolean).map(dog=>({...dog,image_url:(dog.image_urls||[])[0]}));results.innerHTML=dogs.length?dogs.map(card).join(""):'<div class="notice">Your saved dogs are no longer in this catalog. <a href="../index.html">Find dogs to favorite.</a></div>';installImageFallbacks(results);syncFavoriteButtons(results)}}
